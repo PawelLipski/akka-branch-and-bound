@@ -7,13 +7,13 @@ case class Task(priority: Int)
 case class TryAssign
 
 class TaskComparator extends Comparator[Task] {
-	def compare(a: Task, b: Task) = a.priority - b.priority
+	def compare(a: Task, b: Task) = b.priority - a.priority
 }
 
 class Worker extends Actor {
 	def receive = {
 		case task: Task =>
-			println(self.path.name + ": " + task)
+			println(self.path.name + ": " + task)			
 			sender ! Done
 	}
 }
@@ -38,6 +38,7 @@ class Manager extends Actor {
 		case TryAssign =>
 			if (freeWorkers.size > 0 && awaitingTasks.size > 0) {
 				val task = awaitingTasks.poll()
+				println(task)
 				//if (evaluate(task)  bestResult) {
 					val worker = freeWorkers.poll()
 					worker ! task
@@ -87,9 +88,6 @@ object BranchAndBound {
 		manager ! Task(10)
 		manager ! Task(20)
 		manager ! Task(30)
-		manager ! TryAssign
-		manager ! TryAssign
-		manager ! TryAssign
 		run(0, new Array[Int](taskCount), 0)
 		system.shutdown()
 	}
