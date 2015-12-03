@@ -13,8 +13,8 @@ class TaskComparator extends Comparator[Task] {
 }
 
 object InputData {
-	val deadline = 40
-	val execTimes = Array(3, 5, 7, 9, 11, 13, 15, 17)
+	val deadline = 20
+	val execTimes = Array(3, 5, 7, 9, 11, 13)
 	val taskCount = execTimes.length
 
 	def evaluate(consumedTime: Array[Int]) =
@@ -24,7 +24,7 @@ object InputData {
 class Worker extends Actor {
 	import InputData._
 
-	val recursionMaxDepth = 2
+	val recursionMaxDepth = 3
 	var localBestResult = taskCount * deadline
 
 	def solveTaskRecursive(index: Int, consumedTime: Array[Int], machinesBooted: Int, manager: ActorRef, rootIndex: Int) {
@@ -60,7 +60,7 @@ class Worker extends Actor {
 	}
 }
 
-class Manager extends Actor {
+class Manager(val overlord: ActorRef) extends Actor {
 	import InputData._
 
 	var bestResult = taskCount * deadline
@@ -69,6 +69,7 @@ class Manager extends Actor {
 	for (i <- 1 to 2) {
 		freeWorkers.add(context.system.actorOf(Props[Worker], "worker-" + i))
 	}
+	var runningTaskCount = 0
 
 	def enqueue(task: Task) {
 		awaitingTasks.add(task)
@@ -86,17 +87,36 @@ class Manager extends Actor {
 				if (evaluate(task.consumedTime) < bestResult) {
 					val worker = freeWorkers.poll()
 					worker ! TaskAndBestResult(task, bestResult)
+					runningTaskCount += 1
 				}
+			} else if (runningTaskCount == 0 && awaitingTasks.size == 0) {
+				println("All done.")
+				overlord ! bestResult
 			}
 		
 		case Done(bestResultUpdate) =>
 			freeWorkers.add(sender)
 			bestResult = bestResult min bestResultUpdate
+			runningTaskCount -= 1
 			self ! TryAssign
 	}
 }
 
-object BranchAndBound {
+class Overlord extends Actor {
+	import InputData._
+
+	val manager = context.system.actorOf(Props(classOf[Manager], self), "manager")
+	manager ! Task(0, new Array[Int](taskCount), 0)
+
+	def receive = {
+		case result: Int =>
+			println("Final result: " + result)
+			context.system.shutdown()
+			Sequential.run(0, new Array[Int](taskCount), 0)
+	}
+}
+
+object Sequential {
 	import InputData._	
 	var bestResult = taskCount * deadline
 
@@ -119,14 +139,11 @@ object BranchAndBound {
 			}
 		}
 	}
+}
 
+object Main {
 	def main(args: Array[String]) {
-		val system = ActorSystem("BranchAndBound")
-		val manager = system.actorOf(Props(classOf[Manager]), "manager")
-		manager ! Task(0, new Array[Int](taskCount), 0)
-		Thread sleep 5000
-		system.shutdown()
-		run(0, new Array[Int](taskCount), 0)
+		ActorSystem("BranchAndBound").actorOf(Props(classOf[Overlord]), "overlord")		
 	}
 }
 
