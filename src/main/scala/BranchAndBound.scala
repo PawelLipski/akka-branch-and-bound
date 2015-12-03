@@ -53,10 +53,8 @@ class Worker extends Actor {
 
 	def receive = {
 		case TaskAndBestResult(Task(index, consumedTime, machinesBooted), bestResult: Int) =>
-			println(self.path.name + ": index = " + index + ", consumedTime = " + consumedTime.mkString(" "))
 			localBestResult = bestResult
 			solveTaskRecursive(index, consumedTime, machinesBooted, sender, index)
-			println(self.path.name + ": index = " + index + ", consumedTime = " + consumedTime.mkString(" ") + " - DONE")
 			sender ! Done(localBestResult)
 	}
 }
@@ -82,10 +80,8 @@ class Manager(val overlord: ActorRef) extends Actor {
 			self ! TryAssign
 		
 		case TryAssign =>
-			println("TryAssign, |freeWorkers| = " + freeWorkers.size + ", |awaitingTasks| = " + awaitingTasks.size)
 			if (freeWorkers.size > 0 && awaitingTasks.size > 0) {
 				val task = awaitingTasks.poll()
-				//println("TryAssign, task => " + evaluate(task.consumedTime) + ", best = " + bestResult)
 				if (evaluate(task.consumedTime) < bestResult) {
 					val worker = freeWorkers.poll()
 					worker ! TaskAndBestResult(task, bestResult)
@@ -94,14 +90,11 @@ class Manager(val overlord: ActorRef) extends Actor {
 					self ! TryAssign
 				}
 			} else if (runningTaskCount == 0 && awaitingTasks.size == 0) {
-				println("All done.")
 				overlord ! bestResult
 			}
-			println("After TryAssign")
 		
 		case Done(bestResultUpdate) =>
 			freeWorkers.add(sender)
-			println("Done from " + sender.path.name)
 			bestResult = bestResult min bestResultUpdate
 			runningTaskCount -= 1
 			self ! TryAssign
@@ -116,9 +109,10 @@ class Overlord extends Actor {
 
 	def receive = {
 		case result: Int =>
-			println("Final result: " + result)
+			println("Parallel result: " + result)
 			context.system.shutdown()
 			Sequential.run(0, new Array[Int](taskCount), 0)
+			println("Sequential result: " + Sequential.bestResult)
 	}
 }
 
