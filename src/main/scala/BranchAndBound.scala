@@ -1,5 +1,5 @@
 import akka.actor._
-import java.util.{Comparator, PriorityQueue}
+import java.util.{Comparator, PriorityQueue, LinkedList}
 import scala.concurrent.duration._
 
 case class Done
@@ -10,9 +10,20 @@ class TaskComparator extends Comparator[Task] {
 	def compare(a: Task, b: Task) = a.priority - b.priority
 }
 
+class Worker extends Actor {
+	def receive = {
+		case task: Task =>
+			println(task)
+	}
+}
+
 class Manager extends Actor {
 	
 	val awaitingTasks = new PriorityQueue[Task](100, new TaskComparator)
+	val freeWorkers = new LinkedList[ActorRef]
+	for (i <- 1 to 5) {
+		freeWorkers.add(context.system.actorOf(Props[Worker], "worker-" + i))
+	}
 
 	def enqueue(task: Task) {
 		awaitingTasks.add(task)
@@ -21,20 +32,20 @@ class Manager extends Actor {
 	def receive = {
 		case task: Task =>
 			enqueue(task)
-			//self ! TryAssign
+			self ! TryAssign
 		
 		case TryAssign =>
-			//if (!freeWorkers.empty && !awaitingTasks.empty) {
+			if (freeWorkers.size > 0 && awaitingTasks.size > 0) {
 				val task = awaitingTasks.poll()
-				println(task)
-			/*if (evaluate(task)  bestResult) {
-					worker = freeWorkers.poll()
+				//println(task)
+				//if (evaluate(task)  bestResult) {
+					val worker = freeWorkers.poll()
 					worker ! task
-				}
-			}*/
+				//}
+			}
 		
 		/*case Done(bestResultUpdate) =
-			freeWorkers put sender
+			freeWorkers.add(sender)
 			bestResult ?= bestResultUpdate
 			self ! TryAssign*/
 	}
