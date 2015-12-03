@@ -1,0 +1,9 @@
+lib-unused
+*.class
+*.swp
+*.swo
+project/
+target/
+.cache
+.classpath
+.project
