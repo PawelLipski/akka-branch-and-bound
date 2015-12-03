@@ -13,7 +13,8 @@ class TaskComparator extends Comparator[Task] {
 class Worker extends Actor {
 	def receive = {
 		case task: Task =>
-			println(task)
+			println(self.path.name + ": " + task)
+			sender ! Done
 	}
 }
 
@@ -21,7 +22,7 @@ class Manager extends Actor {
 	
 	val awaitingTasks = new PriorityQueue[Task](100, new TaskComparator)
 	val freeWorkers = new LinkedList[ActorRef]
-	for (i <- 1 to 5) {
+	for (i <- 1 to 2) {
 		freeWorkers.add(context.system.actorOf(Props[Worker], "worker-" + i))
 	}
 
@@ -37,26 +38,18 @@ class Manager extends Actor {
 		case TryAssign =>
 			if (freeWorkers.size > 0 && awaitingTasks.size > 0) {
 				val task = awaitingTasks.poll()
-				//println(task)
 				//if (evaluate(task)  bestResult) {
 					val worker = freeWorkers.poll()
 					worker ! task
 				//}
 			}
 		
-		/*case Done(bestResultUpdate) =
+		case Done /*(bestResultUpdate)*/ =>
 			freeWorkers.add(sender)
-			bestResult ?= bestResultUpdate
-			self ! TryAssign*/
+			//bestResult ?= bestResultUpdate
+			self ! TryAssign
 	}
 }
-
-/*worker:
-	Task =
-		just execute the task
-		sender ! Done(INF)
-		// or, maybe
-		sender ! Done(bestResultHere)*/
 
 object BranchAndBound {
 	
