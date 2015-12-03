@@ -13,8 +13,8 @@ class TaskComparator extends Comparator[Task] {
 }
 
 object InputData {
-	val deadline = 12
-	val execTimes = Array(3, 5, 7, 9)
+	val deadline = 40
+	val execTimes = Array(3, 5, 7, 9, 11, 13, 15, 17)
 	val taskCount = execTimes.length
 
 	def evaluate(consumedTime: Array[Int]) =
@@ -28,7 +28,7 @@ class Worker extends Actor {
 	var localBestResult = taskCount * deadline
 
 	def solveTaskRecursive(index: Int, consumedTime: Array[Int], machinesBooted: Int, manager: ActorRef, rootIndex: Int) {
-		println("solveTaskRecursive, index = " + rootIndex + " -> " + index + ", consumedTime = " + consumedTime.mkString)
+		//println("solveTaskRecursive, index = " + rootIndex + " -> " + index + ", consumedTime = " + consumedTime.mkString(" "))
 		if (index == taskCount) {
 			val result = evaluate(consumedTime)
 			if (result < localBestResult) {
@@ -82,7 +82,7 @@ class Manager extends Actor {
 		case TryAssign =>
 			if (freeWorkers.size > 0 && awaitingTasks.size > 0) {
 				val task = awaitingTasks.poll()
-				println("TryAssign, task => " + evaluate(task.consumedTime) + ", best = " + bestResult)
+				//println("TryAssign, task => " + evaluate(task.consumedTime) + ", best = " + bestResult)
 				if (evaluate(task.consumedTime) < bestResult) {
 					val worker = freeWorkers.poll()
 					worker ! TaskAndBestResult(task, bestResult)
@@ -97,18 +97,12 @@ class Manager extends Actor {
 }
 
 object BranchAndBound {
-	
-	val deadline = 30
-	val execTimes = Array(3, 5, 7, 9, 11, 13, 15, 17, 19)
-	val taskCount = execTimes.length
+	import InputData._	
 	var bestResult = taskCount * deadline
-
-	def getResult(consumedTime: Array[Int]) =
-		consumedTime.reduceLeft(_ max _) * consumedTime.filter(_ > 0).length
 
 	def run(index: Int, consumedTime: Array[Int], machinesBooted: Int) {
 		if (index == taskCount) {
-			val result = getResult(consumedTime)
+			val result = evaluate(consumedTime)
 			if (result < bestResult) {
 				bestResult = result
 				println(consumedTime.mkString(" ") + "; " + result)
@@ -119,7 +113,7 @@ object BranchAndBound {
 				if (consumedTime(machine) + time <= deadline) {
 					val newConsumedTime = consumedTime.clone()
 					newConsumedTime(machine) += time
-					if (getResult(newConsumedTime) < bestResult)
+					if (evaluate(newConsumedTime) < bestResult)
 						run(index + 1, newConsumedTime, machinesBooted max (machine+1))
 				}
 			}
@@ -130,9 +124,9 @@ object BranchAndBound {
 		val system = ActorSystem("BranchAndBound")
 		val manager = system.actorOf(Props(classOf[Manager]), "manager")
 		manager ! Task(0, new Array[Int](taskCount), 0)
-		//run(0, new Array[Int](taskCount), 0)
 		Thread sleep 5000
 		system.shutdown()
+		run(0, new Array[Int](taskCount), 0)
 	}
 }
 
