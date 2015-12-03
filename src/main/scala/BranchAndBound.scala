@@ -13,8 +13,8 @@ class TaskComparator extends Comparator[Task] {
 }
 
 object InputData {
-	val deadline = 20
-	val execTimes = Array(3, 5, 7, 9, 11, 13)
+	val deadline = 30
+	val execTimes = Array(3, 5, 7, 9, 11, 13, 15, 17)
 	val taskCount = execTimes.length
 
 	def evaluate(consumedTime: Array[Int]) =
@@ -24,7 +24,7 @@ object InputData {
 class Worker extends Actor {
 	import InputData._
 
-	val recursionMaxDepth = 3
+	val recursionMaxDepth = 2
 	var localBestResult = taskCount * deadline
 
 	def solveTaskRecursive(index: Int, consumedTime: Array[Int], machinesBooted: Int, manager: ActorRef, rootIndex: Int) {
@@ -53,9 +53,10 @@ class Worker extends Actor {
 
 	def receive = {
 		case TaskAndBestResult(Task(index, consumedTime, machinesBooted), bestResult: Int) =>
-			println(self.path.name + ": " + index)
+			println(self.path.name + ": index = " + index + ", consumedTime = " + consumedTime.mkString(" "))
 			localBestResult = bestResult
 			solveTaskRecursive(index, consumedTime, machinesBooted, sender, index)
+			println(self.path.name + ": index = " + index + ", consumedTime = " + consumedTime.mkString(" ") + " - DONE")
 			sender ! Done(localBestResult)
 	}
 }
@@ -81,6 +82,7 @@ class Manager(val overlord: ActorRef) extends Actor {
 			self ! TryAssign
 		
 		case TryAssign =>
+			println("TryAssign, |freeWorkers| = " + freeWorkers.size + ", |awaitingTasks| = " + awaitingTasks.size)
 			if (freeWorkers.size > 0 && awaitingTasks.size > 0) {
 				val task = awaitingTasks.poll()
 				//println("TryAssign, task => " + evaluate(task.consumedTime) + ", best = " + bestResult)
@@ -88,14 +90,18 @@ class Manager(val overlord: ActorRef) extends Actor {
 					val worker = freeWorkers.poll()
 					worker ! TaskAndBestResult(task, bestResult)
 					runningTaskCount += 1
+				} else {
+					self ! TryAssign
 				}
 			} else if (runningTaskCount == 0 && awaitingTasks.size == 0) {
 				println("All done.")
 				overlord ! bestResult
 			}
+			println("After TryAssign")
 		
 		case Done(bestResultUpdate) =>
 			freeWorkers.add(sender)
+			println("Done from " + sender.path.name)
 			bestResult = bestResult min bestResultUpdate
 			runningTaskCount -= 1
 			self ! TryAssign
