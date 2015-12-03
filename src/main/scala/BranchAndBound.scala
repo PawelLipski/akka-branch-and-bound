@@ -5,6 +5,7 @@ import scala.concurrent.duration._
 
 case class Done(bestResultUpdate: Int)
 case class Task(index: Int, consumedTime: Array[Int], machinesBooted: Int)
+case class TaskAndBestResult(task: Task, bestResult: Int)
 case class TryAssign
 
 class TaskComparator extends Comparator[Task] {
@@ -27,6 +28,7 @@ class Worker extends Actor {
 	var localBestResult = taskCount * deadline
 
 	def solveTaskRecursive(index: Int, consumedTime: Array[Int], machinesBooted: Int, manager: ActorRef, rootIndex: Int) {
+		println("solveTaskRecursive, index = " + rootIndex + " -> " + index + ", consumedTime = " + consumedTime.mkString)
 		if (index == taskCount) {
 			val result = evaluate(consumedTime)
 			if (result < localBestResult) {
@@ -50,7 +52,7 @@ class Worker extends Actor {
 	}
 
 	def receive = {
-		case (Task(index, consumedTime, machinesBooted), bestResult: Int) =>
+		case TaskAndBestResult(Task(index, consumedTime, machinesBooted), bestResult: Int) =>
 			println(self.path.name + ": " + index)
 			localBestResult = bestResult
 			solveTaskRecursive(index, consumedTime, machinesBooted, sender, index)
@@ -59,7 +61,6 @@ class Worker extends Actor {
 }
 
 class Manager extends Actor {
-	
 	import InputData._
 
 	var bestResult = taskCount * deadline
@@ -81,10 +82,10 @@ class Manager extends Actor {
 		case TryAssign =>
 			if (freeWorkers.size > 0 && awaitingTasks.size > 0) {
 				val task = awaitingTasks.poll()
-				println(task)
+				println("TryAssign, task => " + evaluate(task.consumedTime) + ", best = " + bestResult)
 				if (evaluate(task.consumedTime) < bestResult) {
 					val worker = freeWorkers.poll()
-					worker ! (task, bestResult)
+					worker ! TaskAndBestResult(task, bestResult)
 				}
 			}
 		
@@ -130,6 +131,7 @@ object BranchAndBound {
 		val manager = system.actorOf(Props(classOf[Manager]), "manager")
 		manager ! Task(0, new Array[Int](taskCount), 0)
 		//run(0, new Array[Int](taskCount), 0)
+		Thread sleep 5000
 		system.shutdown()
 	}
 }
