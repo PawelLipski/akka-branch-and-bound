@@ -1,7 +1,51 @@
 import akka.actor._
-import java.util.{HashMap, Random}
+import java.util.{Comparator, PriorityQueue}
 import scala.concurrent.duration._
 
+case class Done
+case class Task(priority: Int)
+case class TryAssign
+
+class TaskComparator extends Comparator[Task] {
+	def compare(a: Task, b: Task) = a.priority - b.priority
+}
+
+class Manager extends Actor {
+	
+	val awaitingTasks = new PriorityQueue[Task](100, new TaskComparator)
+
+	def enqueue(task: Task) {
+		awaitingTasks.add(task)
+	}
+
+	def receive = {
+		case task: Task =>
+			enqueue(task)
+			//self ! TryAssign
+		
+		case TryAssign =>
+			//if (!freeWorkers.empty && !awaitingTasks.empty) {
+				val task = awaitingTasks.poll()
+				println(task)
+			/*if (evaluate(task)  bestResult) {
+					worker = freeWorkers.poll()
+					worker ! task
+				}
+			}*/
+		
+		/*case Done(bestResultUpdate) =
+			freeWorkers put sender
+			bestResult ?= bestResultUpdate
+			self ! TryAssign*/
+	}
+}
+
+/*worker:
+	Task =
+		just execute the task
+		sender ! Done(INF)
+		// or, maybe
+		sender ! Done(bestResultHere)*/
 
 object BranchAndBound {
 	
@@ -34,10 +78,16 @@ object BranchAndBound {
 	}
 
 	def main(args: Array[String]) {
-		//val system = ActorSystem("BranchAndBound")
-		//val backbone = system.actorOf(Props(classOf[Backbone], auctionCount, buyerCount, searchCount), "backbone")
-		//println(execTimes.reduceLeft(_ max _))
+		val system = ActorSystem("BranchAndBound")
+		val manager = system.actorOf(Props(classOf[Manager]), "manager")
+		manager ! Task(10)
+		manager ! Task(20)
+		manager ! Task(30)
+		manager ! TryAssign
+		manager ! TryAssign
+		manager ! TryAssign
 		run(0, new Array[Int](taskCount), 0)
+		system.shutdown()
 	}
 }
 
