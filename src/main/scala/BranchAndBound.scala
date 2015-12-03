@@ -14,7 +14,7 @@ class TaskComparator extends Comparator[Task] {
 
 object InputData {
 	val deadline = 30
-	val execTimes = Array(3, 5, 7, 9, 11, 13, 15, 17)
+	val execTimes = Array(3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25)
 	val taskCount = execTimes.length
 
 	def evaluate(consumedTime: Array[Int]) =
