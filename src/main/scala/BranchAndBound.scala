@@ -1,25 +1,68 @@
+
 import akka.actor._
 import java.util.{Comparator, PriorityQueue, LinkedList}
 import scala.concurrent.duration._
 
-case class Done
-case class Task(priority: Int)
+case class Done(bestResultUpdate: Int)
+case class Task(index: Int, consumedTime: Array[Int], machinesBooted: Int)
 case class TryAssign
 
 class TaskComparator extends Comparator[Task] {
-	def compare(a: Task, b: Task) = b.priority - a.priority
+	def compare(a: Task, b: Task) = b.index - a.index
+}
+
+object InputData {
+	val deadline = 12
+	val execTimes = Array(3, 5, 7, 9)
+	val taskCount = execTimes.length
+
+	def evaluate(consumedTime: Array[Int]) =
+		consumedTime.reduceLeft(_ max _) * consumedTime.filter(_ > 0).length
 }
 
 class Worker extends Actor {
+	import InputData._
+
+	val recursionMaxDepth = 2
+	var localBestResult = taskCount * deadline
+
+	def solveTaskRecursive(index: Int, consumedTime: Array[Int], machinesBooted: Int, manager: ActorRef, rootIndex: Int) {
+		if (index == taskCount) {
+			val result = evaluate(consumedTime)
+			if (result < localBestResult) {
+				localBestResult = result
+				println(consumedTime.mkString(" ") + "; " + result)
+			}
+		} else if (index == rootIndex + recursionMaxDepth) {
+			manager ! Task(index, consumedTime, machinesBooted)
+		} else {
+			val time = execTimes(index)
+			for (machine <- 0 to machinesBooted) {
+				if (consumedTime(machine) + time <= deadline) {
+					val newConsumedTime = consumedTime.clone()
+					newConsumedTime(machine) += time
+					if (evaluate(newConsumedTime) < localBestResult) {
+						solveTaskRecursive(index + 1, newConsumedTime, machinesBooted max (machine+1), manager, rootIndex)
+					}
+				}
+			}
+		}
+	}
+
 	def receive = {
-		case task: Task =>
-			println(self.path.name + ": " + task)			
-			sender ! Done
+		case (Task(index, consumedTime, machinesBooted), bestResult: Int) =>
+			println(self.path.name + ": " + index)
+			localBestResult = bestResult
+			solveTaskRecursive(index, consumedTime, machinesBooted, sender, index)
+			sender ! Done(localBestResult)
 	}
 }
 
 class Manager extends Actor {
 	
+	import InputData._
+
+	var bestResult = taskCount * deadline
 	val awaitingTasks = new PriorityQueue[Task](100, new TaskComparator)
 	val freeWorkers = new LinkedList[ActorRef]
 	for (i <- 1 to 2) {
@@ -39,15 +82,15 @@ class Manager extends Actor {
 			if (freeWorkers.size > 0 && awaitingTasks.size > 0) {
 				val task = awaitingTasks.poll()
 				println(task)
-				//if (evaluate(task)  bestResult) {
+				if (evaluate(task.consumedTime) < bestResult) {
 					val worker = freeWorkers.poll()
-					worker ! task
-				//}
+					worker ! (task, bestResult)
+				}
 			}
 		
-		case Done /*(bestResultUpdate)*/ =>
+		case Done(bestResultUpdate) =>
 			freeWorkers.add(sender)
-			//bestResult ?= bestResultUpdate
+			bestResult = bestResult min bestResultUpdate
 			self ! TryAssign
 	}
 }
@@ -85,10 +128,8 @@ object BranchAndBound {
 	def main(args: Array[String]) {
 		val system = ActorSystem("BranchAndBound")
 		val manager = system.actorOf(Props(classOf[Manager]), "manager")
-		manager ! Task(10)
-		manager ! Task(20)
-		manager ! Task(30)
-		run(0, new Array[Int](taskCount), 0)
+		manager ! Task(0, new Array[Int](taskCount), 0)
+		//run(0, new Array[Int](taskCount), 0)
 		system.shutdown()
 	}
 }
