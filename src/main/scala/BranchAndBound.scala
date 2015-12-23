@@ -2,6 +2,7 @@
 import akka.actor._
 import java.util.{Comparator, PriorityQueue, LinkedList}
 import scala.concurrent.duration._
+import scala.util.Random
 
 case class Done(bestResultUpdate: Int)
 case class Task(index: Int, consumedTime: Array[Int], machinesBooted: Int)
@@ -13,8 +14,15 @@ class TaskComparator extends Comparator[Task] {
 }
 
 object InputData {
+	val rnd = new Random(123)
+
+	def randomValues(n: Int, max: Int) = {
+		for (i <- 1 to n) yield rnd.nextInt(max)
+	}.toArray
+
 	val deadline = 30
-	val execTimes = Array(3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25)
+	val length = 16
+	val execTimes = randomValues(length, deadline) // Array(3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25)
 	val taskCount = execTimes.length
 
 	def evaluate(consumedTime: Array[Int]) =
@@ -24,7 +32,7 @@ object InputData {
 class Worker extends Actor {
 	import InputData._
 
-	val recursionMaxDepth = 2
+	val recursionMaxDepth = 1
 	var localBestResult = taskCount * deadline
 
 	def solveTaskRecursive(index: Int, consumedTime: Array[Int], machinesBooted: Int, manager: ActorRef, rootIndex: Int) {
@@ -105,14 +113,18 @@ class Overlord extends Actor {
 	import InputData._
 
 	val manager = context.system.actorOf(Props(classOf[Manager], self), "manager")
+	var start = System.nanoTime
 	manager ! Task(0, new Array[Int](taskCount), 0)
 
 	def receive = {
 		case result: Int =>
-			println("Parallel result: " + result)
+			var elapsed = System.nanoTime - start
+			println("Parallel result: " + result + ", elapsed time: " + elapsed / 1e6 + " millisec")
 			context.system.shutdown()
+			start = System.nanoTime
 			Sequential.run(0, new Array[Int](taskCount), 0)
-			println("Sequential result: " + Sequential.bestResult)
+			elapsed = System.nanoTime - start
+			println("Sequential result: " + Sequential.bestResult + ", elapsed time: " + elapsed / 1e6 + " millisec")
 	}
 }
 
