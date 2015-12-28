@@ -4,10 +4,11 @@ import java.util.{Comparator, PriorityQueue, LinkedList}
 import scala.concurrent.duration._
 import scala.util.Random
 
-case class Done(bestResultUpdate: Int)
+case class Done(bestResultUpdate: Int, workload: Int)
 case class Task(index: Int, consumedTime: Array[Int], machinesBooted: Int)
 case class TaskAndBestResult(task: Task, bestResult: Int)
 case class TryAssign
+case class AllDone(result: Int, workload: Int)
 
 class TaskComparator extends Comparator[Task] {
 	def compare(a: Task, b: Task) = b.index - a.index
@@ -39,8 +40,10 @@ class Worker extends Actor {
 	import InputData._
 
 	var localBestResult = taskCount * deadline
+	var localWorkload = 0
 
 	def solveTaskRecursive(index: Int, consumedTime: Array[Int], machinesBooted: Int, manager: ActorRef, rootIndex: Int) {
+		localWorkload += 1
 		if (index == taskCount) {
 			val result = evaluate(consumedTime)
 			if (result < localBestResult) {
@@ -66,8 +69,9 @@ class Worker extends Actor {
 	def receive = {
 		case TaskAndBestResult(Task(index, consumedTime, machinesBooted), bestResult: Int) =>
 			localBestResult = bestResult
+			localWorkload = 0
 			solveTaskRecursive(index, consumedTime, machinesBooted, sender, index)
-			sender ! Done(localBestResult)
+			sender ! Done(localBestResult, localWorkload)
 	}
 }
 
@@ -75,9 +79,10 @@ class Manager(val overlord: ActorRef) extends Actor {
 	import InputData._
 
 	var bestResult = taskCount * deadline
+	var workload = 0
 	val awaitingTasks = new PriorityQueue[Task](100, new TaskComparator)
 	val freeWorkers = new LinkedList[ActorRef]
-	for (i <- 1 to 2) {
+	for (i <- 1 to 8) {
 		freeWorkers.add(context.system.actorOf(Props[Worker], "worker-" + i))
 	}
 	var runningTaskCount = 0
@@ -102,12 +107,13 @@ class Manager(val overlord: ActorRef) extends Actor {
 					self ! TryAssign
 				}
 			} else if (runningTaskCount == 0 && awaitingTasks.size == 0) {
-				overlord ! bestResult
+				overlord ! AllDone(bestResult, workload)
 			}
 		
-		case Done(bestResultUpdate) =>
+		case Done(bestResultUpdate, workloadUpdate) =>
 			freeWorkers.add(sender)
 			bestResult = bestResult min bestResultUpdate
+			workload += workloadUpdate
 			runningTaskCount -= 1
 			self ! TryAssign
 	}
@@ -121,24 +127,28 @@ class Overlord extends Actor {
 	manager ! Task(0, new Array[Int](taskCount), 0)
 
 	def receive = {
-		case result: Int =>
+		case AllDone(result, workload) =>
 			var elapsed = System.nanoTime - start
 			//println("Parallel result: " + result + ", elapsed time: " + elapsed / 1e6 + " millisec")
 			println(elapsed / 1e6)
+			println(workload)
 			context.system.shutdown()
-			start = System.nanoTime
-			Sequential.run(0, new Array[Int](taskCount), 0)
-			elapsed = System.nanoTime - start
+			//start = System.nanoTime
+			//Sequential.run(0, new Array[Int](taskCount), 0)
+			//elapsed = System.nanoTime - start
 			//println("Sequential result: " + Sequential.bestResult + ", elapsed time: " + elapsed / 1e6 + " millisec")
-			println(elapsed / 1e6)
+			//println(elapsed / 1e6)
+			//println(Sequential.workload)
 	}
 }
 
 object Sequential {
 	import InputData._	
 	var bestResult = taskCount * deadline
+	var workload = 0
 
 	def run(index: Int, consumedTime: Array[Int], machinesBooted: Int) {
+		workload += 1
 		if (index == taskCount) {
 			val result = evaluate(consumedTime)
 			if (result < bestResult) {

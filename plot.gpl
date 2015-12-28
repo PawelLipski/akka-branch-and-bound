@@ -1,0 +1,10 @@
+set size square
+
+set xlabel "Max recursion depth"
+set ylabel "Total recursive calls"
+
+set terminal png
+
+set output "calls-by-depth.png"
+plot "calls-by-depth.dat" using 2:3 with lines title "N = 22", 37044763 title ""
+
