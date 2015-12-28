@@ -8,7 +8,7 @@ case class Done(bestResultUpdate: Int, workload: Int)
 case class Task(index: Int, consumedTime: Array[Int], machinesBooted: Int)
 case class TaskAndBestResult(task: Task, bestResult: Int)
 case class TryAssign
-case class AllDone(result: Int, workload: Int)
+case class AllDone(result: Int, workload: Int, scheds: Int)
 
 class TaskComparator extends Comparator[Task] {
 	def compare(a: Task, b: Task) = b.index - a.index
@@ -80,6 +80,7 @@ class Manager(val overlord: ActorRef) extends Actor {
 
 	var bestResult = taskCount * deadline
 	var workload = 0
+	var scheds = 0
 	val awaitingTasks = new PriorityQueue[Task](100, new TaskComparator)
 	val freeWorkers = new LinkedList[ActorRef]
 	for (i <- 1 to 8) {
@@ -88,6 +89,7 @@ class Manager(val overlord: ActorRef) extends Actor {
 	var runningTaskCount = 0
 
 	def enqueue(task: Task) {
+		scheds += 1
 		awaitingTasks.add(task)
 	}
 
@@ -107,7 +109,7 @@ class Manager(val overlord: ActorRef) extends Actor {
 					self ! TryAssign
 				}
 			} else if (runningTaskCount == 0 && awaitingTasks.size == 0) {
-				overlord ! AllDone(bestResult, workload)
+				overlord ! AllDone(bestResult, workload, scheds)
 			}
 		
 		case Done(bestResultUpdate, workloadUpdate) =>
@@ -127,11 +129,12 @@ class Overlord extends Actor {
 	manager ! Task(0, new Array[Int](taskCount), 0)
 
 	def receive = {
-		case AllDone(result, workload) =>
+		case AllDone(result, workload, scheds) =>
 			var elapsed = System.nanoTime - start
 			//println("Parallel result: " + result + ", elapsed time: " + elapsed / 1e6 + " millisec")
 			println(elapsed / 1e6)
 			println(workload)
+			println(scheds)
 			context.system.shutdown()
 			//start = System.nanoTime
 			//Sequential.run(0, new Array[Int](taskCount), 0)

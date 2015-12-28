@@ -1,10 +1,11 @@
 set size square
 
+set logscale y
 set xlabel "Max recursion depth"
-set ylabel "Total recursive calls"
+set ylabel "Total scheduled tasks"
 
 set terminal png
 
-set output "calls-by-depth.png"
-plot "calls-by-depth.dat" using 2:3 with lines title "N = 22", 37044763 title ""
+set output "scheds-by-depth.png"
+plot "scheds-by-depth.dat" using 2:3 with lines title "N = 18"
 

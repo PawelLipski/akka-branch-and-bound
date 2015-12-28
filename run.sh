@@ -9,8 +9,9 @@ avg() {
 	done) \) / $#
 }
 
-TM=1
-WL=2
+TM=1 # time
+WL=2 # rec calls
+SC=3 # scheds
 
 get_line() {
 	sed "${1}q;d"
@@ -28,6 +29,14 @@ plot_workload_by_depth_fixed_N() {
 	done
 }
 
+scheds_by_depth_fixed_N() {
+	N=18
+	for d in `seq 1 $N`; do
+		echo -n "$N $d "
+		avg $(for i in `seq 3`; do get_value $N $d $SC; done)
+	done
+}
+
 time_by_depth_and_N() {
 	for n in 12 14 16 18; do
 		for d in `seq 2 2 12`; do
@@ -40,5 +49,5 @@ time_by_depth_and_N() {
 	done
 }
 
-plot_workload_by_depth_fixed_N
+scheds_by_depth_fixed_N
 
